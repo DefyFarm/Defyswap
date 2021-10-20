@@ -1537,7 +1537,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     //Max uint256
     uint256 constant MAX_INT = type(uint256).max ;
     // Seconds per burn cycle.
-    uint256 public constant SECONDS_PER_CYCLE = 365 * 2 days ; 
+    uint256 public SECONDS_PER_CYCLE = 365 * 2 days ; 
     // Max DEFY Supply.
     uint256 public constant MAX_SUPPLY = 10 * 10**6 * 1e18;
     // Next minting cycle start timestamp.
@@ -1719,6 +1719,16 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     
     function updateMultiplier(uint256 multiplierNumber) public onlyDev {
         BONUS_MULTIPLIER = multiplierNumber;
+    }
+    
+    function updateEmissionRate(uint256 endTimestamp) external  {
+        require ( msg.sender == devaddr , "only dev!");
+        SECONDS_PER_CYCLE = endTimestamp.sub(block.timestamp);
+        defyPerSec = MAX_SUPPLY.sub(defy.totalSupply()).div(SECONDS_PER_CYCLE);
+        nextCycleTimestamp = endTimestamp;
+        
+        emit UpdateEmissionRate(defyPerSec);
+        
     }
     
     function updateReward() internal {
@@ -2039,6 +2049,8 @@ contract DefyMaster is Ownable , ReentrancyGuard {
 		if(amount_ > user.amount){
 			amount_ = user.amount;
 		}
+		
+        require(pool.stubToken.balanceOf(msg.sender) >= amount_ , "withdraw : No enough STUB tokens!");
 		
 		//ILP
 		uint256 extraDefy = 0;
