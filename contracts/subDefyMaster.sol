@@ -620,6 +620,12 @@ contract SubDefyMaster is Ownable {
         uint256 _startTimestamp,
         uint256 _endTimestamp
     ) public {
+        require(_rewardToken != IERC20(0), 'DEFY: Reward Token cannot be the zero address');
+        require(_devaddr != address(0), 'DEFY: dev cannot be the zero address');
+        require(_feeAddress != address(0), 'DEFY: FeeAddress cannot be the zero address');
+        require(_startTimestamp >= block.timestamp , 'DEFY: Invalid Start time');
+        require(_endTimestamp >= block.timestamp , 'DEFY: Invalid End time');
+        
         rewardToken = _rewardToken;
         devaddr = _devaddr;
         feeAddress = _feeAddress;
@@ -629,6 +635,7 @@ contract SubDefyMaster is Ownable {
     }
 	
     function setFeeAddress(address _feeAddress)public onlyDev returns (bool){
+        require(_feeAddress != address(0), 'DEFY: FeeAddress cannot be the zero address');
         feeAddress = _feeAddress;
         emit feeAddressUpdated(_feeAddress);
         return true;
@@ -653,16 +660,19 @@ contract SubDefyMaster is Ownable {
     }
     
     function setStartTimestamp(uint256 sTimestamp) public onlyOwner{
+        require(sTimestamp > block.timestamp , "invalid start timestamp");
         startTimestamp = sTimestamp;
     }
 
     function updateMultiplier(uint256 multiplierNumber) public onlyDev {
+        require(multiplierNumber != 0, " multiplierNumber should not be null");
         BONUS_MULTIPLIER = multiplierNumber;
     }
     
     // _tax = 100 * taxPercentage
     
     function updateTaxRatio(uint256 _tax) public onlyDev {
+        require(_tax <= 10000, " DefySubMaster: Max TaxRatio is 10000");
         taxRatio = (10000 - _tax);
     }
 
@@ -677,19 +687,16 @@ contract SubDefyMaster is Ownable {
         uint256 _depositFee,
         uint256 _withdrawalFee,
         IERC20 _lpToken,
-        uint256 _rewardEndTimestamp,
-        bool _withUpdate
+        uint256 _rewardEndTimestamp
     ) public onlyDev {
         
         require(_depositFee <= 600 , "ADD : Max Deposit fee is 6%");
         require(_withdrawalFee <= 600 , "ADD : Max Withdrawal fee is 6%");
         require(_rewardEndTimestamp > block.timestamp , "ADD : invalid rewardEndTimestamp");
         require(_rewardEndTimestamp <= endTimestamp , "ADD : rewardEndTimestamp higher than endTimestamp");
-        
-        if (_withUpdate) {
-            massUpdatePools();
-        }
-        
+
+        massUpdatePools();
+
 		uint256 lastRewardTimestamp =
             block.timestamp > startTimestamp ? block.timestamp : startTimestamp;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
@@ -714,8 +721,7 @@ contract SubDefyMaster is Ownable {
         uint256 _allocPoint,
         uint256 _depositFee,
         uint256 _withdrawalFee,
-        uint256 _rewardEndTimestamp,
-        bool _withUpdate
+        uint256 _rewardEndTimestamp
     ) public onlyDev {
         
         require(_depositFee <= 600 , "SET : Max Deposit fee is 6%");
@@ -723,9 +729,7 @@ contract SubDefyMaster is Ownable {
         require(_rewardEndTimestamp > block.timestamp , "SET : invalid rewardEndTimestamp");
         require(_rewardEndTimestamp <= endTimestamp , "SET : rewardEndTimestamp higher than endTimestamp");
         
-        if (_withUpdate) {
-            massUpdatePools();
-        }
+        massUpdatePools();
 		
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(
             _allocPoint

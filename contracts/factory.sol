@@ -172,6 +172,7 @@ contract DefySwapERC20 is IDefySwapERC20 {
     }
 
     function transfer(address to, uint value) external returns (bool) {
+        require(to != address(0), 'DefySwap: TO cannot be the zero address');
         _transfer(msg.sender, to, value);
         return true;
     }
@@ -345,6 +346,7 @@ contract DefySwapPair is IDefySwapPair, DefySwapERC20 {
 
     // called once by the factory at time of deployment
     function initialize(address _token0, address _token1) external {
+        require(_token0 != address(0) && _token1 != address(0), 'DefySwap: tokens cannot be the zero address');
         require(msg.sender == factory, 'DefySwap: FORBIDDEN'); // sufficient check
         token0 = _token0;
         token1 = _token1;
@@ -505,6 +507,7 @@ contract DefySwapFactory is IDefySwapFactory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
     constructor(address _feeToSetter) public {
+        require(_feeToSetter != address(0), 'DefySwap: feeToSetter cannot be the zero address');
         feeToSetter = _feeToSetter;
     }
 
@@ -531,11 +534,13 @@ contract DefySwapFactory is IDefySwapFactory {
 
     function setFeeTo(address _feeTo) external {
         require(msg.sender == feeToSetter, 'DefySwap: FORBIDDEN');
+        require(_feeTo != address(0), 'DefySwap: feeTo cannot be the zero address');
         feeTo = _feeTo;
     }
 
     function setFeeToSetter(address _feeToSetter) external {
         require(msg.sender == feeToSetter, 'DefySwap: FORBIDDEN');
+        require(_feeToSetter != address(0), 'DefySwap feeToSetter cannot be the zero address');
         feeToSetter = _feeToSetter;
     }
 }

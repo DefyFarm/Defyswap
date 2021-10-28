@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.6.12;
+pragma solidity 0.6.12;
 
 
 // 
@@ -894,14 +894,16 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
         _;
     }
     
-    constructor(address _dev, address _bunVault,  uint256 _initAmount) public {	//address _ilpVault,
-     	
+    constructor(address _dev, address _bunVault,  uint256 _initAmount) public {
+     	require(_dev != address(0), 'DEFY: dev cannot be the zero address');
+     	require(_bunVault != address(0), 'DEFY: burn vault cannot be the zero address');
      	dev = _dev;
      	BURN_VAULT = _bunVault;
      	defyMaster = msg.sender;
      	mint(msg.sender,_initAmount);
         _isExcludedFromFee[msg.sender] = true;
         _isExcludedFromFee[_bunVault] = true;
+        _isExcludedFromFee[_dev] = true;
     }
     
     
@@ -929,7 +931,8 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
         emit IncludeInFee(account);	
     }
     
-    function setRouter(address _router) external onlyOwner {	
+    function setRouter(address _router) external onlyOwner {
+        require(_router != address(0), 'DEFY: Router cannot be the zero address');
         router = _router;	
         emit SetRouter(_router);	
     }
@@ -967,24 +970,30 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
     
     function setDev(address _dev) external onlyDev {
         require(dev != address(0), 'DEFY: dev cannot be the zero address');
+        _isExcludedFromFee[dev] = false;
         dev = _dev ;
         _isExcludedFromFee[_dev] = true;	
         emit NewDeveloper(_dev);
     }
     
     function setBurnVault(address _burnVault) external onlyMaster {
+        _isExcludedFromFee[BURN_VAULT] = false;	
         BURN_VAULT = _burnVault ;
-        _isExcludedFromFee[_burnVault] = true;	
+        _isExcludedFromFee[_burnVault] = true;
         emit SetBurnVault(_burnVault);
     }
     
     function setIlpVault(address _ilpVault) external onlyOwner {
+        _isExcludedFromFee[ILP_VAULT] = false;
         ILP_VAULT = _ilpVault;
         _isExcludedFromFee[_ilpVault] = true;
         emit SetIlpVault(_ilpVault);
     }
     
+    
+    
     function setMaster(address master) public onlyMaster {
+        require(master!= address(0), 'DEFY: DefyMaster cannot be the zero address');
         defyMaster = master;
         emit SetDefyMaster(master);
     }

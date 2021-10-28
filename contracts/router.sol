@@ -374,6 +374,8 @@ contract DefySwapRouter is IDefySwapRouter02 {
     }
 
     constructor(address _factory, address _WETH) public {
+        require(_factory != address(0), 'DefySwapRouter: factory cannot be the zero address');
+        require(_WETH != address(0), 'DefySwapRouter: WFTM cannot be the zero address');
         factory = _factory;
         WETH = _WETH;
     }

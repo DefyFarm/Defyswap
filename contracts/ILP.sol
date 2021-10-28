@@ -730,6 +730,8 @@ contract ImpermanentLossProtection is Ownable {
     constructor( address _defy, address _defyMaster)
 	public 
 	{
+	    require( _defy != address(0) , 'ILP: DFY cannot be the zero address');
+	    require( _defyMaster != address(0) , 'ILP: DefyMaster cannot be the zero address');
         defy = _defy;
 		defyMaster = _defyMaster;
         devAddr = msg.sender;
@@ -749,6 +751,9 @@ contract ImpermanentLossProtection is Ownable {
 	public 
 	onlyFarm 
 	{
+	    require( _defy != address(0) , 'ILP: DFY cannot be the zero address');
+	    require( _defyMaster != address(0) , 'ILP: DefyMaster cannot be the zero address');
+	    
         defy = _defy;
 		defyMaster = _defyMaster;
 		
@@ -764,14 +769,18 @@ contract ImpermanentLossProtection is Ownable {
 	{
 		uint256 defyBal = IERC20(defy).balanceOf(address(this));
 		uint256 xfAmt = _amount;
+		bool successfulTansfer = false;
 		if( xfAmt > defyBal )
 			xfAmt = defyBal;
-		if(xfAmt > 0)
-			IERC20(defy).transfer(_to, xfAmt);
+		if(xfAmt > 0){
+			successfulTansfer = IERC20(defy).transfer(_to, xfAmt);
+			require(successfulTansfer, "ILPDefyTransfer: transfer failed");
+		}
     }
 
     // Update dev address by the previous dev.
     function dev(address _devAddr) public {
+	    require( _devAddr != address(0) , 'ILP: Dev cannot be the zero address');
         require(msg.sender == devAddr, "dev: wut?");
         devAddr = _devAddr;
     }
@@ -785,6 +794,8 @@ contract ImpermanentLossProtection is Ownable {
 	public 
 	onlyDev 
 	{
+	    require( _lpToken != address(0) , 'ILP: LP token cannot be the zero address');
+	    
         poolInfo.push(
             PoolInfo({
                 lpToken: _lpToken,

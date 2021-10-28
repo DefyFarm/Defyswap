@@ -976,6 +976,7 @@ contract Zap is Ownable, IZap {
     mapping (address => bool) public useNativeRouter;
 
     constructor(address _WNATIVE) Ownable() {
+        require(_WNATIVE != address(0) , 'Native token cannot be the zero address');
        WNATIVE = _WNATIVE;
     }
 
@@ -985,10 +986,11 @@ contract Zap is Ownable, IZap {
 
     function zapInToken(address _from, uint amount, address _to, address routerAddr, address _recipient) external override {
         _approveTokenIfNeeded(_from, routerAddr);
-
+        bool successfulTansfer = false;
         if (isFeeOnTransfer[_from]) {
-            IERC20(_from).transferFrom(msg.sender, address(this), amount);
+            successfulTansfer = IERC20(_from).transferFrom(msg.sender, address(this), amount);
             _swapTokenToLP(_from, IERC20(_from).balanceOf(address(this)), _to, _recipient, routerAddr);
+            require(successfulTansfer, "safeTransferFrom: transfer failed");
             return;
         } else {
             // From an ERC20 to an LP token, through specified router, going through base asset if necessary

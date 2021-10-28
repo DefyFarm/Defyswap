@@ -874,11 +874,13 @@ contract BurnVault is Ownable {
     }
     
     function setDefyMaster (address master) external onlyDefy{
+        require(master != address(0), 'DEFY: DefyMaster cannot be the zero address');
         defyMaster = master ;
         emit SetDefyMaster(master);
     }
     
     function setDefy (address _defy) external onlyDefy{
+        require(_defy!= address(0), 'DEFY: DFY cannot be the zero address');
         defy = DfyToken(_defy);
     }
     

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.6.12;
+pragma solidity 0.6.12;
 
 
 
@@ -1605,6 +1605,11 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         uint256 _startTimestamp,
         uint256 _initMint
     ) public {
+        
+        require(_devaddr != address(0), 'DEFY: dev cannot be the zero address');
+        require(_feeAddress != address(0), 'DEFY: FeeAddress cannot be the zero address');
+        require(_startTimestamp >= block.timestamp , 'DEFY: Invalid start time');
+        
         defy = _defy;
         burn_vault = _burnvault;
         ilp = _ilp;
@@ -1637,23 +1642,27 @@ contract DefyMaster is Ownable , ReentrancyGuard {
 
     }
 
-    function setImpermanentLossProtection(address _ilp)public onlyDev returns (bool){
+    function setImpermanentLossProtection(address _ilp)public onlyDev returns (bool){        
+        require(_ilp != address(0), 'DEFY: ILP cannot be the zero address');
         ilp = ImpermanentLossProtection(_ilp);
     }
     
-    function setFeeAddress(address _feeAddress)public onlyDev returns (bool){
+    function setFeeAddress(address _feeAddress)public onlyDev returns (bool){        
+        require(_feeAddress != address(0), 'DEFY: FeeAddress cannot be the zero address');
         feeAddress = _feeAddress;
         emit SetFeeAddress(_feeAddress);
         return true;
     }
     
-    function setDFY(DfyToken _dfy)public onlyDev returns (bool){
+    function setDFY(DfyToken _dfy)public onlyDev returns (bool){        
+        require(_dfy != DfyToken(0), 'DEFY: DFY cannot be the zero address');
         defy = _dfy;
         emit SetDFY(address(_dfy));
         return true;
     }
     
-    function setSecondaryReward(IERC20 _rewardToken)public onlyDev returns (bool){
+    function setSecondaryReward(IERC20 _rewardToken)public onlyDev returns (bool){        
+        require(_rewardToken != IERC20(0), 'DEFY: SecondaryReward cannot be the zero address');
         secondR = _rewardToken;
         emit SetSecondaryReward(address(_rewardToken));
         return true;
@@ -1713,15 +1722,18 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     }
     
     function setStartTimestamp(uint256 sTimestamp) public onlyDev{
+        require(sTimestamp > block.timestamp, "Invalid Timestamp");
         startTimestamp = sTimestamp;
         emit UpdateStartTimestamp(sTimestamp);
     }
     
     function updateMultiplier(uint256 multiplierNumber) public onlyDev {
+        require(multiplierNumber != 0, " multiplierNumber should not be null");
         BONUS_MULTIPLIER = multiplierNumber;
     }
     
     function updateEmissionRate(uint256 endTimestamp) external  {
+        require(endTimestamp > ((block.timestamp).add(2 days)), "Minimum duration is 2 days");
         require ( msg.sender == devaddr , "only dev!");
         SECONDS_PER_CYCLE = endTimestamp.sub(block.timestamp);
         defyPerSec = MAX_SUPPLY.sub(defy.totalSupply()).div(SECONDS_PER_CYCLE);
@@ -1770,8 +1782,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     uint256 _withdrawalFee,
     bool _offerILP, 
     bool _issueSTUB,
-    uint256 _rewardEndTimestamp,
-    bool _withUpdate
+    uint256 _rewardEndTimestamp
     
     ) public onlyDev {
         
@@ -1779,9 +1790,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         require(_withdrawalFee <= 600, "Add : Max Deposit Fee is 6%");
         require(_rewardEndTimestamp > block.timestamp , "Add: invalid rewardEndTimestamp");
         
-        if (_withUpdate) {
-            massUpdatePools();
-        }
+        massUpdatePools();
         
         ilp.add(address(_lpToken), _token0, _token1, _offerILP);
         uint256 lastRewardTimestamp = block.timestamp > startTimestamp ? block.timestamp : startTimestamp;
@@ -1819,18 +1828,16 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     uint256 _withdrawalFee,
     bool _offerILP, 
     bool _issueSTUB,
-    uint256 _rewardEndTimestamp,
-    bool _withUpdate
+    uint256 _rewardEndTimestamp
     
     ) public onlyOwner {
         
         require(_depositFee <= 600, "Add : Max Deposit Fee is 6%");
         require(_withdrawalFee <= 600, "Add : Max Deposit Fee is 6%");
         require(_rewardEndTimestamp > block.timestamp , "Add: invalid rewardEndTimestamp");
-        
-        if (_withUpdate) {
-            massUpdatePools();
-        }
+
+        massUpdatePools();
+
         ilp.set(_pid, _token0, _token1, _offerILP);
         
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
@@ -2100,25 +2107,30 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     // Safe defy transfer function, just in case if rounding error causes pool to not have enough DEFYs.
     function safeDefyTransfer(address _to, uint256 _amount) internal {
         uint256 defyBal = defy.balanceOf(address(this));
+        bool successfulTansfer = false;
         if (_amount > defyBal) {
-            defy.transfer(_to, defyBal);
+            successfulTansfer = defy.transfer(_to, defyBal);
         } else {
-            defy.transfer(_to, _amount);
+            successfulTansfer = defy.transfer(_to, _amount);
         }
+        require(successfulTansfer, "safeDefyTransfer: transfer failed");
     }
     
     // Safe SecondR transfer function, just in case if rounding error causes pool to not have enough Secondary reward tokens.
     function safeSecondRTransfer(address _to, uint256 _amount) internal {
         uint256 secondRBal = secondR.balanceOf(address(this));
+        bool successfulTansfer = false;
         if (_amount > secondRBal) {
-            secondR.transfer(_to, secondRBal);
+            successfulTansfer = secondR.transfer(_to, secondRBal);
         } else {
-            secondR.transfer(_to, _amount);
+            successfulTansfer = secondR.transfer(_to, _amount);
         }
+        require(successfulTansfer, "safeSecondRTransfer: transfer failed");
     }
 
     // Update dev address by the previous dev.
     function dev(address _devaddr) public {
+        require(_devaddr != address(0), 'DEFY: dev cannot be the zero address');
         require(msg.sender == devaddr, "dev: wut?");
         devaddr = _devaddr;
     }
