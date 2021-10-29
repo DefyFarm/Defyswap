@@ -1733,7 +1733,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     }
     
     function updateEmissionRate(uint256 endTimestamp) external  {
-        require(endTimestamp > ((block.timestamp).add(2 days)), "Minimum duration is 2 days");
+        require(endTimestamp > ((block.timestamp).add(182 days)), "Minimum duration is 6 months");
         require ( msg.sender == devaddr , "only dev!");
         SECONDS_PER_CYCLE = endTimestamp.sub(block.timestamp);
         defyPerSec = MAX_SUPPLY.sub(defy.totalSupply()).div(SECONDS_PER_CYCLE);
