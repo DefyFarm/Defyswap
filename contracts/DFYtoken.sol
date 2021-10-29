@@ -908,14 +908,17 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
     
     
     /// @notice Creates `_amount` token to `_to`. Must only be called by the owner (DefyMaster).
-    function mint(address _to, uint256 _amount) public onlyMaster {
+    function mint(address _to, uint256 _amount) public onlyMaster returns (bool) {
         require(_maxSupply >= totalSupply().add(_amount) , "Error : Total Supply Reached" );
         _mint(_to, _amount);
         _moveDelegates(address(0), _delegates[_to], _amount);
+        return true;
     }
     
     function mint(uint256 amount) public override onlyMaster returns (bool) {
+        require(_maxSupply >= totalSupply().add(amount) , "Error : Total Supply Reached" );
         _mint(_msgSender(), amount);
+        _moveDelegates(address(0), _delegates[_msgSender()], amount);
         return true;
     }
     
@@ -1010,6 +1013,7 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
     
     function burn(uint256 amount) public {
         _burn(msg.sender, amount);
+        _moveDelegates(address(0), _delegates[msg.sender], amount);
         emit Burn(amount);
     }
     
