@@ -3,6 +3,8 @@
 
 pragma solidity 0.6.12;
 
+// website: www.defyswap.finance
+
 abstract contract Context {
     function _msgSender() internal view virtual returns (address payable) {
         return msg.sender;
@@ -653,9 +655,12 @@ contract SubDefyMaster is Ownable {
     function updateReward(uint256 _reward, uint256 _endTimestamp) public onlyOwner{
         
        require(_endTimestamp > block.timestamp , "invalid end timestamp");
-       
-        rewardPerSecond = _reward.div((_endTimestamp).sub(block.timestamp));
+
+        massUpdatePools();
         endTimestamp = _endTimestamp;
+        rewardPerSecond = 0;
+        massUpdatePools();
+        rewardPerSecond = _reward.div((_endTimestamp).sub(block.timestamp));        
         
     }
     
@@ -887,7 +892,14 @@ contract SubDefyMaster is Ownable {
         if(xfAmt > 0) {
             user.amount = user.amount.sub(xfAmt);
             pool.lpSupply = pool.lpSupply.sub(xfAmt);
-            pool.lpToken.safeTransfer(address(msg.sender), xfAmt);
+            
+            if (pool.withdrawalFee > 0) {
+                uint256 withdrawalFee = xfAmt.mul(pool.withdrawalFee).div(10000);
+                pool.lpToken.safeTransfer(feeAddress, withdrawalFee);
+                pool.lpToken.safeTransfer(address(msg.sender), xfAmt.sub(withdrawalFee));
+            } else {
+                pool.lpToken.safeTransfer(address(msg.sender), xfAmt);
+            }
         }
 		
 		user.depositTime = block.timestamp;
