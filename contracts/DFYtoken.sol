@@ -2,6 +2,7 @@
 
 pragma solidity 0.6.12;
 
+// website: www.defyswap.finance
 
 // 
 /*
@@ -858,14 +859,16 @@ contract ERC20 is Context, IERC20, Ownable {
 contract DfyToken is ERC20('DefySwap', 'DFY') {
     
     
-    mapping (address => bool) private _isExcludedFromFee;
+    mapping (address => bool) private _isRExcludedFromFee; // excluded list from receive 
+    mapping (address => bool) private _isSExcludedFromFee; // excluded list from send
+    mapping (address => bool) private _isPair;
     
     uint256 public _burnFee = 40;
     uint256 public _ilpFee = 5;
     uint256 public _devFee = 4;
     
     uint256 public _maxTxAmount = 10 * 10**6 * 1e18;
-    uint256 public _maxSupply = 10 * 10**6 * 1e18;
+    uint256 public constant _maxSupply = 10 * 10**6 * 1e18;
     
     address public BURN_VAULT;
     address public ILP_VAULT;
@@ -874,9 +877,12 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
     address public router;
     
     event NewDeveloper(address);
-    event ExcludeFromFee(address);	
-    event IncludeInFee(address);
+    event ExcludeFromFeeR(address);	
+    event ExcludeFromFeeS(address);	
+    event IncludeInFeeR(address);
+    event IncludeInFeeS(address);
     event SetRouter(address);
+    event SetPair(address,bool);
     event BurnFeeUpdated(uint256,uint256);
     event IlpFeeUpdated(uint256,uint256);
     event DevFeeUpdated(uint256,uint256);
@@ -901,9 +907,12 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
      	BURN_VAULT = _bunVault;
      	defyMaster = msg.sender;
      	mint(msg.sender,_initAmount);
-        _isExcludedFromFee[msg.sender] = true;
-        _isExcludedFromFee[_bunVault] = true;
-        _isExcludedFromFee[_dev] = true;
+        _isRExcludedFromFee[msg.sender] = true;
+        _isRExcludedFromFee[_bunVault] = true;
+        _isRExcludedFromFee[_dev] = true;
+        _isSExcludedFromFee[msg.sender] = true;
+        _isSExcludedFromFee[_bunVault] = true;
+        _isSExcludedFromFee[_dev] = true;
     }
     
     
@@ -922,22 +931,41 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
         return true;
     }
     
-    function excludeFromFee(address account) external onlyOwner {
-        require(!_isExcludedFromFee[account], "Account is already excluded From Fee");
-        _isExcludedFromFee[account] = true;	
-        emit ExcludeFromFee(account);	
-    }	
-    	
-    function includeInFee(address account) external onlyOwner {	
-         require( _isExcludedFromFee[account], "Account is not excluded From Fee");	
-        _isExcludedFromFee[account] = false;	
-        emit IncludeInFee(account);	
+    // Exclude an account from receive fee
+    function excludeFromFeeR(address account) external onlyOwner {
+        require(!_isRExcludedFromFee[account], "Account is already excluded From receive Fee");
+        _isRExcludedFromFee[account] = true;	
+        emit ExcludeFromFeeR(account);	
+    }
+    // Exclude an account from send fee
+    function excludeFromFeeS(address account) external onlyOwner {
+        require(!_isSExcludedFromFee[account], "Account is already excluded From send Fee");
+        _isSExcludedFromFee[account] = true;	
+        emit ExcludeFromFeeS(account);	
+    }
+    // Include an account in receive fee	
+    function includeInFeeR(address account) external onlyOwner {	
+         require( _isRExcludedFromFee[account], "Account is not excluded From receive Fee");	
+        _isRExcludedFromFee[account] = false;	
+        emit IncludeInFeeR(account);	
+    }
+    // Include an account in send fee
+    function includeInFeeS(address account) external onlyOwner {	
+         require( _isSExcludedFromFee[account], "Account is not excluded From send Fee");	
+        _isSExcludedFromFee[account] = false;	
+        emit IncludeInFeeS(account);	
     }
     
     function setRouter(address _router) external onlyOwner {
         require(_router != address(0), 'DEFY: Router cannot be the zero address');
         router = _router;	
         emit SetRouter(_router);	
+    }
+    
+    function setPair(address _pair, bool _status) external onlyOwner {
+        require(_pair != address(0), 'DEFY: Pair cannot be the zero address');
+        _isPair[_pair] = _status;	
+        emit SetPair(_pair , _status);	
     }
     	
     function setBurnFee(uint256 burnFee) external onlyOwner() {	
@@ -973,23 +1001,29 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
     
     function setDev(address _dev) external onlyDev {
         require(dev != address(0), 'DEFY: dev cannot be the zero address');
-        _isExcludedFromFee[dev] = false;
+        _isRExcludedFromFee[dev] = false;
+        _isSExcludedFromFee[dev] = false;
         dev = _dev ;
-        _isExcludedFromFee[_dev] = true;	
+        _isRExcludedFromFee[_dev] = true;
+        _isSExcludedFromFee[_dev] = true;	
         emit NewDeveloper(_dev);
     }
     
     function setBurnVault(address _burnVault) external onlyMaster {
-        _isExcludedFromFee[BURN_VAULT] = false;	
+        _isRExcludedFromFee[BURN_VAULT] = false;	
+        _isSExcludedFromFee[BURN_VAULT] = false;	
         BURN_VAULT = _burnVault ;
-        _isExcludedFromFee[_burnVault] = true;
+        _isRExcludedFromFee[_burnVault] = true;
+        _isSExcludedFromFee[_burnVault] = true;
         emit SetBurnVault(_burnVault);
     }
     
     function setIlpVault(address _ilpVault) external onlyOwner {
-        _isExcludedFromFee[ILP_VAULT] = false;
+        _isRExcludedFromFee[ILP_VAULT] = false;
+        _isSExcludedFromFee[ILP_VAULT] = false;
         ILP_VAULT = _ilpVault;
-        _isExcludedFromFee[_ilpVault] = true;
+        _isRExcludedFromFee[_ilpVault] = true;
+        _isSExcludedFromFee[_ilpVault] = true;
         emit SetIlpVault(_ilpVault);
     }
     
@@ -998,11 +1032,16 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
     function setMaster(address master) public onlyMaster {
         require(master!= address(0), 'DEFY: DefyMaster cannot be the zero address');
         defyMaster = master;
+        _isRExcludedFromFee[master] = true;
+        _isSExcludedFromFee[master] = true;
         emit SetDefyMaster(master);
     }
     
-    function isExcludedFromFee(address account) external view returns(bool) {	
-        return _isExcludedFromFee[account];
+    function isExcludedFromFee(address account) external view returns(bool Rfee , bool SFee) {	
+        return (_isRExcludedFromFee[account] , _isSExcludedFromFee[account] );
+    }
+    function isPair(address account) external view returns(bool) {	
+        return _isPair[account];
     }
     
     function burnToVault(uint256 amount) public {
@@ -1018,13 +1057,13 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
     }
     
     function transferTaxFree(address recipient, uint256 amount) public returns (bool) {
-        require(_msgSender() == router , "DFY: Only DefySwap Router");
+        require(_isPair[_msgSender()] || _msgSender() == router , "DFY: Only DefySwap Router or Defy pair");
         super._transfer(_msgSender(), recipient, amount);
         return true;
     }
     
     function transferFromTaxFree(address sender, address recipient, uint256 amount) public returns (bool) {
-        require(_msgSender() == router , "DFY: Only DefySwap Router");
+        require(_isPair[_msgSender()] || _msgSender() == router , "DFY: Only DefySwap Router or Defy pair");
         super._transfer(sender, recipient, amount);
         super._approve(
             sender,
@@ -1039,7 +1078,7 @@ contract DfyToken is ERC20('DefySwap', 'DFY') {
         
         //if any account belongs to _isExcludedFromFee account then remove the fee	
 
-        if (_isExcludedFromFee[sender] || _isExcludedFromFee[recipient]) {
+        if (_isSExcludedFromFee[sender] || _isRExcludedFromFee[recipient]) {
             super._transfer(sender, recipient, amount);
         }
         else {

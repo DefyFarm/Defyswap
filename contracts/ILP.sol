@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+// website: www.defyswap.finance
 
 pragma solidity 0.6.12;
 
@@ -719,11 +720,11 @@ contract ImpermanentLossProtection is Ownable {
 	PoolInfo[] public poolInfo;
 	
 	modifier onlyFarm() {
-        require(defyMaster == _msgSender() || owner() == _msgSender(), "ERROR: caller is not the defyMaster or owner.");
+        require(defyMaster == _msgSender() || owner() == _msgSender() || address(this) == _msgSender(), "ERROR: caller is not the defyMaster or owner.");
         _;
     }
     modifier onlyDev() {
-        require(defyMaster == _msgSender() || devAddr == _msgSender(), "ERROR: caller is not the defyMaster or Dev.");
+        require(defyMaster == _msgSender() || devAddr == _msgSender() || owner() == _msgSender(), "ERROR: caller is not the defyMaster or Dev.");
         _;
     }
 
@@ -757,8 +758,13 @@ contract ImpermanentLossProtection is Ownable {
         defy = _defy;
 		defyMaster = _defyMaster;
 		
-		set(0,IERC20(0),IERC20(0),false);
 		poolInfo[0].lpToken = _defy ;
+		poolInfo[0].token0 = IERC20(0);
+		poolInfo[0].token1 = IERC20(0);
+		poolInfo[0].token0_decimal = 18;
+		poolInfo[0].token1_decimal = 18;
+		poolInfo[0].impermanentLossProtection = false;
+		
     }
     
     

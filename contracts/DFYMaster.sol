@@ -2,7 +2,7 @@
 
 pragma solidity 0.6.12;
 
-
+// website: www.defyswap.finance
 
 // 
 /*
@@ -634,7 +634,7 @@ contract ERC20 is Context, IERC20, Ownable {
 
     mapping(address => uint256) private _balances;
 
-    mapping(address => mapping(address => uint256)) private _allowances;
+    mapping(address => mapping(address => uint256)) internal _allowances;
 
     uint256 private _totalSupply;
 
@@ -915,26 +915,33 @@ contract ERC20 is Context, IERC20, Ownable {
 }
 
 // DFYToken with Governance.
-contract DfyToken is ERC20('DfyToken', 'DFY')  {
+contract DfyToken is ERC20('DefySwap', 'DFY') {
     
     
-    mapping (address => bool) private _isExcludedFromFee;
+    mapping (address => bool) private _isRExcludedFromFee; // excluded list from receive 
+    mapping (address => bool) private _isSExcludedFromFee; // excluded list from send
+    mapping (address => bool) private _isPair;
     
     uint256 public _burnFee = 40;
     uint256 public _ilpFee = 5;
     uint256 public _devFee = 4;
     
     uint256 public _maxTxAmount = 10 * 10**6 * 1e18;
-    uint256 public _maxSupply = 10 * 10**6 * 1e18;
+    uint256 public constant _maxSupply = 10 * 10**6 * 1e18;
     
     address public BURN_VAULT;
     address public ILP_VAULT;
     address public defyMaster;
     address public dev;
+    address public router;
     
     event NewDeveloper(address);
-    event ExcludeFromFee(address);	
-    event IncludeInFee(address);
+    event ExcludeFromFeeR(address);	
+    event ExcludeFromFeeS(address);	
+    event IncludeInFeeR(address);
+    event IncludeInFeeS(address);
+    event SetRouter(address);
+    event SetPair(address,bool);
     event BurnFeeUpdated(uint256,uint256);
     event IlpFeeUpdated(uint256,uint256);
     event DevFeeUpdated(uint256,uint256);
@@ -952,43 +959,74 @@ contract DfyToken is ERC20('DfyToken', 'DFY')  {
         _;
     }
     
-    constructor(address _dev, address _bunVault,  uint256 _initAmount) public {	//address _ilpVault,
-     	
+    constructor(address _dev, address _bunVault,  uint256 _initAmount) public {
+     	require(_dev != address(0), 'DEFY: dev cannot be the zero address');
+     	require(_bunVault != address(0), 'DEFY: burn vault cannot be the zero address');
      	dev = _dev;
      	BURN_VAULT = _bunVault;
      	defyMaster = msg.sender;
      	mint(msg.sender,_initAmount);
-        _isExcludedFromFee[msg.sender] = true;
-        _isExcludedFromFee[_bunVault] = true;
+        _isRExcludedFromFee[msg.sender] = true;
+        _isRExcludedFromFee[_bunVault] = true;
+        _isRExcludedFromFee[_dev] = true;
+        _isSExcludedFromFee[msg.sender] = true;
+        _isSExcludedFromFee[_bunVault] = true;
+        _isSExcludedFromFee[_dev] = true;
     }
     
     
     /// @notice Creates `_amount` token to `_to`. Must only be called by the owner (DefyMaster).
-    function mint(address _to, uint256 _amount) public onlyMaster {
+    function mint(address _to, uint256 _amount) public onlyMaster returns (bool) {
         require(_maxSupply >= totalSupply().add(_amount) , "Error : Total Supply Reached" );
         _mint(_to, _amount);
         _moveDelegates(address(0), _delegates[_to], _amount);
-    }
-    
-    function mint(uint256 amount) public override onlyMaster returns (bool) {
-        _mint(_msgSender(), amount);
         return true;
     }
     
-    function excludeFromFee(address account) external onlyOwner {
-        require(!_isExcludedFromFee[account], "Account is already excluded From Fee");
-        _isExcludedFromFee[account] = true;	
-        emit ExcludeFromFee(account);	
-    }	
+    function mint(uint256 amount) public override onlyMaster returns (bool) {
+        require(_maxSupply >= totalSupply().add(amount) , "Error : Total Supply Reached" );
+        _mint(_msgSender(), amount);
+        _moveDelegates(address(0), _delegates[_msgSender()], amount);
+        return true;
+    }
+    
+    // Exclude an account from receive fee
+    function excludeFromFeeR(address account) external onlyOwner {
+        require(!_isRExcludedFromFee[account], "Account is already excluded From receive Fee");
+        _isRExcludedFromFee[account] = true;	
+        emit ExcludeFromFeeR(account);	
+    }
+    // Exclude an account from send fee
+    function excludeFromFeeS(address account) external onlyOwner {
+        require(!_isSExcludedFromFee[account], "Account is already excluded From send Fee");
+        _isSExcludedFromFee[account] = true;	
+        emit ExcludeFromFeeS(account);	
+    }
+    // Include an account in receive fee	
+    function includeInFeeR(address account) external onlyOwner {	
+         require( _isRExcludedFromFee[account], "Account is not excluded From receive Fee");	
+        _isRExcludedFromFee[account] = false;	
+        emit IncludeInFeeR(account);	
+    }
+    // Include an account in send fee
+    function includeInFeeS(address account) external onlyOwner {	
+         require( _isSExcludedFromFee[account], "Account is not excluded From send Fee");	
+        _isSExcludedFromFee[account] = false;	
+        emit IncludeInFeeS(account);	
+    }
+    
+    function setRouter(address _router) external onlyOwner {
+        require(_router != address(0), 'DEFY: Router cannot be the zero address');
+        router = _router;	
+        emit SetRouter(_router);	
+    }
+    
+    function setPair(address _pair, bool _status) external onlyOwner {
+        require(_pair != address(0), 'DEFY: Pair cannot be the zero address');
+        _isPair[_pair] = _status;	
+        emit SetPair(_pair , _status);	
+    }
     	
-    	
-    function includeInFee(address account) external onlyOwner {	
-         require( _isExcludedFromFee[account], "Account is not excluded From Fee");	
-        _isExcludedFromFee[account] = false;	
-        emit IncludeInFee(account);	
-    }	
-    	
-   	
     function setBurnFee(uint256 burnFee) external onlyOwner() {	
         require(burnFee <= 80 , "Error : MaxBurnFee is 8%");
         uint256 _previousBurnFee = _burnFee;	
@@ -1022,30 +1060,47 @@ contract DfyToken is ERC20('DfyToken', 'DFY')  {
     
     function setDev(address _dev) external onlyDev {
         require(dev != address(0), 'DEFY: dev cannot be the zero address');
+        _isRExcludedFromFee[dev] = false;
+        _isSExcludedFromFee[dev] = false;
         dev = _dev ;
-        _isExcludedFromFee[_dev] = true;	
+        _isRExcludedFromFee[_dev] = true;
+        _isSExcludedFromFee[_dev] = true;	
         emit NewDeveloper(_dev);
     }
     
     function setBurnVault(address _burnVault) external onlyMaster {
+        _isRExcludedFromFee[BURN_VAULT] = false;	
+        _isSExcludedFromFee[BURN_VAULT] = false;	
         BURN_VAULT = _burnVault ;
-        _isExcludedFromFee[_burnVault] = true;	
+        _isRExcludedFromFee[_burnVault] = true;
+        _isSExcludedFromFee[_burnVault] = true;
         emit SetBurnVault(_burnVault);
     }
     
     function setIlpVault(address _ilpVault) external onlyOwner {
+        _isRExcludedFromFee[ILP_VAULT] = false;
+        _isSExcludedFromFee[ILP_VAULT] = false;
         ILP_VAULT = _ilpVault;
-        _isExcludedFromFee[_ilpVault] = true;
+        _isRExcludedFromFee[_ilpVault] = true;
+        _isSExcludedFromFee[_ilpVault] = true;
         emit SetIlpVault(_ilpVault);
     }
     
+    
+    
     function setMaster(address master) public onlyMaster {
+        require(master!= address(0), 'DEFY: DefyMaster cannot be the zero address');
         defyMaster = master;
+        _isRExcludedFromFee[master] = true;
+        _isSExcludedFromFee[master] = true;
         emit SetDefyMaster(master);
     }
     
-    function isExcludedFromFee(address account) external view returns(bool) {	
-        return _isExcludedFromFee[account];
+    function isExcludedFromFee(address account) external view returns(bool Rfee , bool SFee) {	
+        return (_isRExcludedFromFee[account] , _isSExcludedFromFee[account] );
+    }
+    function isPair(address account) external view returns(bool) {	
+        return _isPair[account];
     }
     
     function burnToVault(uint256 amount) public {
@@ -1056,16 +1111,33 @@ contract DfyToken is ERC20('DfyToken', 'DFY')  {
     
     function burn(uint256 amount) public {
         _burn(msg.sender, amount);
+        _moveDelegates(address(0), _delegates[msg.sender], amount);
         emit Burn(amount);
+    }
+    
+    function transferTaxFree(address recipient, uint256 amount) public returns (bool) {
+        require(_isPair[_msgSender()] || _msgSender() == router , "DFY: Only DefySwap Router or Defy pair");
+        super._transfer(_msgSender(), recipient, amount);
+        return true;
+    }
+    
+    function transferFromTaxFree(address sender, address recipient, uint256 amount) public returns (bool) {
+        require(_isPair[_msgSender()] || _msgSender() == router , "DFY: Only DefySwap Router or Defy pair");
+        super._transfer(sender, recipient, amount);
+        super._approve(
+            sender,
+            _msgSender(),
+            _allowances[sender][_msgSender()].sub(amount, 'ERC20: transfer amount exceeds allowance')
+        );
+        return true;
     }
     
     /// @dev overrides transfer function to meet tokenomics of DEFY
     function _transfer(address sender, address recipient, uint256 amount) internal override {
-        require(amount > 0, "amount 0");
         
         //if any account belongs to _isExcludedFromFee account then remove the fee	
 
-        if (_isExcludedFromFee[sender] || _isExcludedFromFee[recipient]) {
+        if (_isSExcludedFromFee[sender] || _isRExcludedFromFee[recipient]) {
             super._transfer(sender, recipient, amount);
         }
         else {
@@ -1467,12 +1539,7 @@ interface ImpermanentLossProtection{
     function getDefyPrice(uint256 _pid) external view returns (uint256 defyPrice);
 }
 
-// DefyMaster is the master of Defy. He can make Defy and he is a fair guy.
-//
-// Note that it's ownable and the owner wields tremendous power. The ownership
-// will be transferred to a governance smart contract once DEFY is sufficiently
-// distributed and the community can show to govern itself.
-//
+// DefyMaster is the master of Defy. He can make Dfy and he is a fair guy.
 // Have fun reading it. Hopefully it's bug-free. God bless.
 contract DefyMaster is Ownable , ReentrancyGuard {
     using SafeMath for uint256;
@@ -1486,7 +1553,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         uint256 depositTime; // Time when the user deposit LP tokens.
 		uint256 depVal; // LP token value at the deposit time.
         //
-        // We do some fancy math here. Basically, any point in time, the amount of DEFYs
+        // We do some fancy math here. Basically, any point in time, the amount of DFYs
         // entitled to a user but is pending to be distributed is:
         //
         //   pending reward = (user.amount * pool.accDefyPerShare) - user.rewardDebt
@@ -1502,21 +1569,21 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     struct PoolInfo {
         IERC20 lpToken;                 // Address of LP token contract.
         DefySTUB stubToken;             // STUB / Receipt Token for farmers.
-        uint256 allocPoint;             // How many allocation points assigned to this pool. DEFYs to distribute per Second.
+        uint256 allocPoint;             // How many allocation points assigned to this pool. DFYs to distribute per Second.
         uint256 allocPointDR;           // How many allocation points assigned to this pool for Secondary Reward. 
         uint256 depositFee;             // LP Deposit fee.
         uint256 withdrawalFee;          // LP Withdrawal fee
-        uint256 lastRewardTimestamp;    // Last timestamp that DEFYs distribution occurs.
+        uint256 lastRewardTimestamp;    // Last timestamp that DFYs distribution occurs.
         uint256 lastRewardTimestampDR;  // Last timestamp that Secondary Reward distribution occurs.
         uint256 rewardEndTimestamp;     // Reward ending Timestamp.
-        uint256 accDefyPerShare;        // Accumulated DEFYs per share, times 1e12. See below.
-        uint256 accSecondRPerShare;     // Accumulated Second Reward Tokens per share, times 1e12. See below.
+        uint256 accDefyPerShare;        // Accumulated DFYs per share, times 1e12. See below.
+        uint256 accSecondRPerShare;     // Accumulated Second Reward Tokens per share, times 1e24. See below.
         uint256 lpSupply;               // Total Lp tokens Staked in farm.
 		bool impermanentLossProtection; // ILP availability
 		bool issueStub;                 // STUB Availability.
     }
 
-    // The DEFY TOKEN!
+    // The DFY TOKEN!
     DfyToken public defy;
     // Secondary Reward Token.
     IERC20 public secondR;
@@ -1528,22 +1595,22 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     address public devaddr;
     // Deposit/Withdrawal Fee address
     address public feeAddress;
-    // DEFY tokens created per second.
+    // DFY tokens created per second.
     uint256 public defyPerSec;
     // Secondary Reward distributed per second.
     uint256 public secondRPerSec;
-    // Bonus muliplier for early defy makers.
+    // Bonus muliplier for early dfy makers.
     uint256 public BONUS_MULTIPLIER = 1;
     //Max uint256
     uint256 constant MAX_INT = type(uint256).max ;
     // Seconds per burn cycle.
     uint256 public SECONDS_PER_CYCLE = 365 * 2 days ; 
-    // Max DEFY Supply.
+    // Max DFY Supply.
     uint256 public constant MAX_SUPPLY = 10 * 10**6 * 1e18;
     // Next minting cycle start timestamp.
     uint256 public nextCycleTimestamp;
     // The Timestamp when Secondary Reward mining ends.
-    uint256 public endTimestampDR;
+    uint256 public endTimestampDR = MAX_INT;
 
     // Info of each pool.
   PoolInfo[] public poolInfo;
@@ -1553,7 +1620,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     uint256 public totalAllocPoint = 0;
     // Total allocation points for Dual Reward. Must be the sum of all Dual reward allocation points in all pools.
     uint256 public totalAllocPointDR = 0;
-    // The Timestamp when DEFY mining starts.
+    // The Timestamp when DFY mining starts.
     uint256 public startTimestamp;
     
     modifier onlyDev() {
@@ -1599,7 +1666,6 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         DfyToken _defy,
         DefySTUB _stub,
         BurnVault _burnvault,
-        ImpermanentLossProtection _ilp,
         address _devaddr,
         address _feeAddress,
         uint256 _startTimestamp,
@@ -1612,7 +1678,6 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         
         defy = _defy;
         burn_vault = _burnvault;
-        ilp = _ilp;
         devaddr = _devaddr;
         feeAddress = _feeAddress;
         startTimestamp = _startTimestamp;
@@ -1735,6 +1800,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     function updateEmissionRate(uint256 endTimestamp) external  {
         require(endTimestamp > ((block.timestamp).add(182 days)), "Minimum duration is 6 months");
         require ( msg.sender == devaddr , "only dev!");
+        massUpdatePools();
         SECONDS_PER_CYCLE = endTimestamp.sub(block.timestamp);
         defyPerSec = MAX_SUPPLY.sub(defy.totalSupply()).div(SECONDS_PER_CYCLE);
         nextCycleTimestamp = endTimestamp;
@@ -1747,8 +1813,6 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         uint256 burnAmount = defy.balanceOf(address(burn_vault));
         defyPerSec = burnAmount.div(SECONDS_PER_CYCLE);
         
-        nextCycleTimestamp = (block.timestamp).add(SECONDS_PER_CYCLE);
-        
         burn_vault.burn();
         
         emit UpdateEmissionRate(defyPerSec);
@@ -1758,8 +1822,12 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         
        require(_endTimestamp > block.timestamp , "invalid End timestamp");
        
-        secondRPerSec = _reward.div((_endTimestamp).sub(block.timestamp));
+        massUpdatePools();
         endTimestampDR = _endTimestamp;
+        secondRPerSec = 0;
+        massUpdatePools();
+       
+        secondRPerSec = _reward.div((_endTimestamp).sub(block.timestamp));
         
         emit UpdateSecondaryEmissionRate(secondRPerSec);
     }
@@ -1770,7 +1838,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
 
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-    // XXX DO NOT set ILP for non DEFY pairs. 
+    // XXX DO NOT set ILP for non DFY pairs. 
     function add(
     uint256 _allocPoint,
     uint256 _allocPointDR,
@@ -1817,7 +1885,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
 
     }
 
-    // Update the given pool's DEFY allocation point. Can only be called by the owner.
+    // Update the given pool's DFY allocation point. Can only be called by the owner.
     function set(
     uint256 _pid, 
     uint256 _allocPoint,
@@ -1859,7 +1927,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         return _to.sub(_from).mul(BONUS_MULTIPLIER);
     }
 
-    // View function to see pending DEFYs on frontend.
+    // View function to see pending DFYs on frontend.
     function pendingDefy(uint256 _pid, address _user) external view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
@@ -1900,9 +1968,9 @@ contract DefyMaster is Ownable , ReentrancyGuard {
             }
             uint256 multiplier = getMultiplier(pool.lastRewardTimestampDR, blockTimestamp);
             uint256 secondRReward = multiplier.mul(secondRPerSec).mul(pool.allocPointDR).div(totalAllocPointDR);
-            accSecondRPerShare = accSecondRPerShare.add(secondRReward.mul(1e12).div(lpSupply));
+            accSecondRPerShare = accSecondRPerShare.add(secondRReward.mul(1e24).div(lpSupply));
         }
-        return user.amount.mul(accSecondRPerShare).div(1e12).sub(user.rewardDebtDR);
+        return user.amount.mul(accSecondRPerShare).div(1e24).sub(user.rewardDebtDR);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
@@ -1911,13 +1979,29 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         for (uint256 pid = 0; pid < length; ++pid) {
             updatePool(pid);
         }
+        if (block.timestamp > nextCycleTimestamp){
+            nextCycleTimestamp = (block.timestamp).add(SECONDS_PER_CYCLE);
+            defyPerSec = 0;
+            
+            for (uint256 pid = 0; pid < length; ++pid) {
+            updatePool(pid);
+             }
+            updateReward();
+        }
     }
 
 
     // Update reward variables of the given pool to be up-to-date.
-    function updatePool(uint256 _pid) public {
-        bool new_cycle = block.timestamp > nextCycleTimestamp ? true : false;
-        
+    function updatePoolPb(uint256 _pid) public {
+        if (block.timestamp > nextCycleTimestamp){
+            massUpdatePools();
+        }
+        else {
+            updatePool(_pid);
+        }
+    }
+    
+    function updatePool(uint256 _pid) internal {
         PoolInfo storage pool = poolInfo[_pid];
         if (block.timestamp  <= pool.lastRewardTimestamp && block.timestamp  <= pool.lastRewardTimestampDR) {
             return;
@@ -1968,29 +2052,23 @@ contract DefyMaster is Ownable , ReentrancyGuard {
             secondRReward = multiplier.mul(secondRPerSec).mul(pool.allocPointDR).div(totalAllocPointDR);
         }
         
-        defy.mint(address(this), defyReward);
+        if(defyReward > 0 ){
+            defy.mint(address(this), defyReward);
+        }
         pool.accDefyPerShare = pool.accDefyPerShare.add(defyReward.mul(1e12).div(lpSupply));
-        pool.accSecondRPerShare = pool.accSecondRPerShare.add(secondRReward.mul(1e12).div(lpSupply));
+        pool.accSecondRPerShare = pool.accSecondRPerShare.add(secondRReward.mul(1e24).div(lpSupply));
         
-        if(!new_cycle)
-        {
-            pool.lastRewardTimestamp = blockTimestamp;
-            pool.lastRewardTimestampDR = blockTimestampDR;
-        }
-        else{
-            updateReward();
-            
-            pool.lastRewardTimestamp = block.timestamp;
-            pool.lastRewardTimestampDR = block.timestamp;
-        }
+        pool.lastRewardTimestamp = blockTimestamp;
+        pool.lastRewardTimestampDR = blockTimestampDR;
+        
     }
 
-    // Deposit LP tokens to DefyMaster for DEFY allocation.
+    // Deposit LP tokens to DefyMaster for DFY allocation.
     function deposit(uint256 _pid, uint256 _amount) public {
 
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
-        updatePool(_pid);
+        updatePoolPb(_pid);
         
         uint256 amount_ = _amount;
         //If the LP token balance is lower than _amount,
@@ -2007,12 +2085,12 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         
         if (user.amount > 0) {
             uint256 pending = user.amount.mul(pool.accDefyPerShare).div(1e12).sub(user.rewardDebt);
-            uint256 pendingDR = user.amount.mul(pool.accSecondRPerShare).div(1e12).sub(user.rewardDebtDR);
+            uint256 pendingDR = user.amount.mul(pool.accSecondRPerShare).div(1e24).sub(user.rewardDebtDR);
             if(pending > 0) {
                 safeDefyTransfer(msg.sender, pending);
             }
             if(pendingDR > 0) {
-                safeSecondRTransfer(msg.sender, pending);
+                safeSecondRTransfer(msg.sender, pendingDR);
             }
             if(extraDefy > 0 && extraDefy > pending){
 				ilp.defyTransfer(msg.sender, extraDefy.sub(pending));
@@ -2027,18 +2105,25 @@ contract DefyMaster is Ownable , ReentrancyGuard {
              if (pool.depositFee > 0) {
                 uint256 depositFee = amount_.mul(pool.depositFee).div(10000);
                 pool.lpToken.safeTransfer(feeAddress, depositFee);
+                if (pool.issueStub){
+                pool.stubToken.mint(msg.sender, amount_.sub(depositFee));
+                }
                 user.amount = user.amount.add(amount_).sub(depositFee);
                 pool.lpSupply = pool.lpSupply.add(amount_).sub(depositFee);
             } else {
                 user.amount = user.amount.add(amount_);
                 pool.lpSupply = pool.lpSupply.add(amount_);
+                
+                if (pool.issueStub){
+                pool.stubToken.mint(msg.sender, amount_);
+                }
             }
+            
         }
         user.depVal = ilp.getDepositValue(user.amount, _pid);
 		user.depositTime = block.timestamp;
         user.rewardDebt = user.amount.mul(pool.accDefyPerShare).div(1e12);
-        user.rewardDebtDR = user.amount.mul(pool.accSecondRPerShare).div(1e12);
-        pool.stubToken.mint(msg.sender, amount_);
+        user.rewardDebtDR = user.amount.mul(pool.accSecondRPerShare).div(1e24);
         emit Deposit(msg.sender, _pid, amount_);
     }
 
@@ -2048,7 +2133,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount > 0 , "withdraw: nothing to withdraw");
-        updatePool(_pid);
+        updatePoolPb(_pid);
         
         uint256 amount_ = _amount;
         //If the User LP token balance in farm is lower than _amount,
@@ -2057,7 +2142,6 @@ contract DefyMaster is Ownable , ReentrancyGuard {
 			amount_ = user.amount;
 		}
 		
-        require(pool.stubToken.balanceOf(msg.sender) >= amount_ , "withdraw : No enough STUB tokens!");
 		
 		//ILP
 		uint256 extraDefy = 0;
@@ -2066,28 +2150,37 @@ contract DefyMaster is Ownable , ReentrancyGuard {
 		}
         
         uint256 pending = user.amount.mul(pool.accDefyPerShare).div(1e12).sub(user.rewardDebt);
-        uint256 pendingDR = user.amount.mul(pool.accSecondRPerShare).div(1e12).sub(user.rewardDebtDR);
+        uint256 pendingDR = user.amount.mul(pool.accSecondRPerShare).div(1e24).sub(user.rewardDebtDR);
         
         if(pending > 0) {
             safeDefyTransfer(msg.sender, pending);
         }
         if(pendingDR > 0) {
-            safeSecondRTransfer(msg.sender, pending);
+            safeSecondRTransfer(msg.sender, pendingDR);
         }
         if(extraDefy > 0 && extraDefy > pending){
 			ilp.defyTransfer(msg.sender, extraDefy.sub(pending));
         }
 
         if(amount_ > 0) {
+            if (pool.issueStub){
+                require(pool.stubToken.balanceOf(msg.sender) >= amount_ , "withdraw : No enough STUB tokens!");
+                pool.stubToken.burn(msg.sender, amount_);
+            }
+            if (pool.withdrawalFee > 0) {
+                uint256 withdrawalFee = amount_.mul(pool.withdrawalFee).div(10000);
+                pool.lpToken.safeTransfer(feeAddress, withdrawalFee);
+                pool.lpToken.safeTransfer(address(msg.sender), amount_.sub(withdrawalFee));
+            } else {
+                pool.lpToken.safeTransfer(address(msg.sender), amount_);
+            }
             user.amount = user.amount.sub(amount_);
-            pool.lpToken.safeTransfer(address(msg.sender), amount_);
             pool.lpSupply = pool.lpSupply.sub(amount_);
         }
         user.depVal = ilp.getDepositValue(user.amount, _pid);
 		user.depositTime = block.timestamp;
         user.rewardDebt = user.amount.mul(pool.accDefyPerShare).div(1e12);
-        user.rewardDebtDR = user.amount.mul(pool.accSecondRPerShare).div(1e12);
-        pool.stubToken.burn(msg.sender, amount_);
+        user.rewardDebtDR = user.amount.mul(pool.accSecondRPerShare).div(1e24);
         
         emit Withdraw(msg.sender, _pid, amount_);
     }
@@ -2104,7 +2197,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         user.rewardDebtDR = 0;
     }
 
-    // Safe defy transfer function, just in case if rounding error causes pool to not have enough DEFYs.
+    // Safe defy transfer function, just in case if rounding error causes pool to not have enough DFYs.
     function safeDefyTransfer(address _to, uint256 _amount) internal {
         uint256 defyBal = defy.balanceOf(address(this));
         bool successfulTansfer = false;
