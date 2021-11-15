@@ -268,6 +268,7 @@ contract DefySwapPair is IDefySwapPair, DefySwapERC20 {
     address public factory;
     address public token0;
     address public token1;
+    
 
     uint112 private reserve0;           // uses single storage slot, accessible via getReserves
     uint112 private reserve1;           // uses single storage slot, accessible via getReserves
@@ -277,6 +278,8 @@ contract DefySwapPair is IDefySwapPair, DefySwapERC20 {
     uint public price1CumulativeLast;
     uint public kLast; // reserve0 * reserve1, as of immediately after the most recent liquidity event
 
+    uint public lpFee = 20 ; //trading fee ratio for lp providers 
+    uint public sFee = 10 ; //secondary trading fee
     uint private unlocked = 1;
     
     mapping (address => bool) private _addTaxFree;
@@ -306,6 +309,14 @@ contract DefySwapPair is IDefySwapPair, DefySwapERC20 {
         require(msg.sender == IDefySwapFactory(factory).feeToSetter() , "only DefySwap Dev allowed");
         _removeTaxFree[token0] = token0_Tax;
         _removeTaxFree[token1] = token1_tax;
+        return(true);
+    }
+    
+    function setFees(uint _lpFee , uint _sFee) external returns(bool) {
+        require(msg.sender == IDefySwapFactory(factory).feeToSetter() , "only DefySwap Dev allowed");
+        require(_lpFee.add(_sFee) == 30 , "Total Fee should be 0.3%" );
+        lpFee = _lpFee ;
+        sFee = _sFee ;
         return(true);
     }
     
@@ -368,7 +379,7 @@ contract DefySwapPair is IDefySwapPair, DefySwapERC20 {
         emit Sync(reserve0, reserve1);
     }
 
-    // if fee is on, mint liquidity equivalent to 1/3 of the growth in sqrt(k)
+    // if fee is on, mint liquidity equivalent to sFee/30 of the growth in sqrt(k)
     function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool feeOn) {
         address feeTo = IDefySwapFactory(factory).feeTo();
         feeOn = feeTo != address(0);
@@ -378,8 +389,8 @@ contract DefySwapPair is IDefySwapPair, DefySwapERC20 {
                 uint rootK = Math.sqrt(uint(_reserve0).mul(_reserve1));
                 uint rootKLast = Math.sqrt(_kLast);
                 if (rootK > rootKLast) {
-                    uint numerator = totalSupply.mul(rootK.sub(rootKLast));
-                    uint denominator = rootK.mul(2).add(rootKLast);
+                    uint numerator = totalSupply.mul(rootK.sub(rootKLast)).mul(sFee);
+                    uint denominator = rootK.mul(lpFee).add(rootKLast.mul(sFee));
                     uint liquidity = numerator / denominator;
                     if (liquidity > 0) _mint(feeTo, liquidity);
                 }
@@ -472,9 +483,9 @@ contract DefySwapPair is IDefySwapPair, DefySwapERC20 {
         uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
         require(amount0In > 0 || amount1In > 0, 'DefySwap: INSUFFICIENT_INPUT_AMOUNT');
         { // scope for reserve{0,1}Adjusted, avoids stack too deep errors
-        uint balance0Adjusted = (balance0.mul(1000).sub(amount0In.mul(3)));
-        uint balance1Adjusted = (balance1.mul(1000).sub(amount1In.mul(3)));
-        require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000**2), 'DefySwap: K');
+        uint balance0Adjusted = (balance0.mul(10000).sub(amount0In.mul(30)));
+        uint balance1Adjusted = (balance1.mul(10000).sub(amount1In.mul(30)));
+        require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(10000**2), 'DefySwap: K');
         }
 
         _update(balance0, balance1, _reserve0, _reserve1);

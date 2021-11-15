@@ -1,3 +1,6 @@
+// www.defyswap.finance
+
+
 pragma solidity =0.6.6;
 
 
@@ -19,7 +22,7 @@ interface IDefySwapFactory {
     function INIT_CODE_PAIR_HASH() external view returns (bytes32);
 }
 
-// helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false
+// helper methods for interacting with ERC20 tokens and sending FTM that do not consistently return true/false
 library TransferHelper {
     function safeApprove(address token, address to, uint value) internal {
         // bytes4(keccak256(bytes('approve(address,uint256)')));
@@ -279,7 +282,7 @@ library DefySwapLibrary {
                 hex'ff',
                 factory,
                 keccak256(abi.encodePacked(token0, token1)),
-                hex'5f4d39e9ab05c87ce2fd2a9b07bab2c73f291b42ace667902eef002ceb5de377' // init code hash
+                hex'28612bce471572b813dde946a942d1fee6ca4be6437ac8c23a7ca01a3b127ba6' // init code hash
             ))));
     }
 
@@ -381,7 +384,7 @@ contract DefySwapRouter is IDefySwapRouter02 {
     }
 
     receive() external payable {
-        assert(msg.sender == WETH); // only accept ETH via fallback from the WETH contract
+        assert(msg.sender == WETH); // only accept FTM via fallback from the WFTM contract
     }
 
     // **** ADD LIQUIDITY ****
@@ -468,7 +471,7 @@ contract DefySwapRouter is IDefySwapRouter02 {
         IWETH(WETH).deposit{value: amountETH}();
         assert(IWETH(WETH).transfer(pair, amountETH));
         liquidity = IDefySwapPair(pair).mint(to);
-        // refund dust eth, if any
+        // refund dust FTM, if any
         if (msg.value > amountETH) TransferHelper.safeTransferETH(msg.sender, msg.value - amountETH);
     }
 
@@ -710,7 +713,7 @@ contract DefySwapRouter is IDefySwapRouter02 {
         IWETH(WETH).deposit{value: amounts[0]}();
         assert(IWETH(WETH).transfer(DefySwapLibrary.pairFor(factory, path[0], path[1]), amounts[0]));
         _swap(amounts, path, to);
-        // refund dust eth, if any
+        // refund dust FTM, if any
         if (msg.value > amounts[0]) TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0]);
     }
 
