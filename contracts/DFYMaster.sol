@@ -1593,6 +1593,8 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     ImpermanentLossProtection public ilp;
     // Dev address.
     address public devaddr;
+    // Emergency Dev
+    address public emDev;
     // Deposit/Withdrawal Fee address
     address public feeAddress;
     // DFY tokens created per second.
@@ -1638,6 +1640,8 @@ contract DefyMaster is Ownable , ReentrancyGuard {
     event SetSecondaryReward(address newToken);
     event UpdateEmissionRate(uint256 defyPerSec);
     event UpdateSecondaryEmissionRate(uint256 secondRPerSec);
+    event DFYOwnershipTransfer(address newOwner);
+    event RenounceEmDev();
     
     event addPool(
         uint256 indexed pid, 
@@ -1667,6 +1671,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         DefySTUB _stub,
         BurnVault _burnvault,
         address _devaddr,
+        address _emDev,
         address _feeAddress,
         uint256 _startTimestamp,
         uint256 _initMint
@@ -1679,6 +1684,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         defy = _defy;
         burn_vault = _burnvault;
         devaddr = _devaddr;
+        emDev = _emDev;
         feeAddress = _feeAddress;
         startTimestamp = _startTimestamp;
         
@@ -1689,7 +1695,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         poolInfo.push(PoolInfo({
             lpToken: _defy,
             stubToken: _stub,
-            allocPoint: 1000,
+            allocPoint: 400,
             allocPointDR: 0,
             depositFee: 0,        
             withdrawalFee: 0,
@@ -1703,7 +1709,7 @@ contract DefyMaster is Ownable , ReentrancyGuard {
             issueStub: true
         }));
 
-        totalAllocPoint = 1000;
+        totalAllocPoint = 400;
 
     }
 
@@ -2220,6 +2226,20 @@ contract DefyMaster is Ownable , ReentrancyGuard {
         }
         require(successfulTansfer, "safeSecondRTransfer: transfer failed");
     }
+
+    // only in an Emergency by emDev
+    function transferOwnerDfy(address _newOwner) external {
+        require (msg.sender == emDev , "only emergency dev");
+        defy.transferOwnership(_newOwner);
+        emit DFYOwnershipTransfer(_newOwner);
+    }
+
+    function renounceEmDev() external {
+        require (msg.sender == emDev , "only emergency dev");
+        emDev = address(0);
+        emit RenounceEmDev();
+    }
+
 
     // Update dev address by the previous dev.
     function dev(address _devaddr) public {

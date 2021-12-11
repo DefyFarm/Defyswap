@@ -856,7 +856,7 @@ contract ERC20 is Context, IERC20, Ownable {
 }
 
 // DFYToken with Governance.
-contract DfyToken is ERC20('DefySwap', 'DFY') {
+contract DfyToken is ERC20('DKR', 'AKR') {
     
     
     mapping (address => bool) private _isRExcludedFromFee; // excluded list from receive 

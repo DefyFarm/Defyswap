@@ -854,7 +854,9 @@ contract ERC20 is Context, IERC20, Ownable {
 }
 
 // DefySTUB with Governance.
-contract DefySTUB is ERC20('DFY Stub', 'STUB') {
+contract DefySTUB is ERC20('DefySwap Stub', 'DFY-STUB') {
+    address public constant DfyMaster = 0x53e986884c55c9AEDB7f003583f350EE789505D0 ;
+
     /// @notice Creates `_amount` token to `_to`. Must only be called by the owner (DefyMaster).
     function mint(address _to, uint256 _amount) public onlyOwner {
         _mint(_to, _amount);
@@ -864,6 +866,10 @@ contract DefySTUB is ERC20('DFY Stub', 'STUB') {
     function burn(address _from ,uint256 _amount) public onlyOwner {
         _burn(_from, _amount);
         _moveDelegates(address(0), _delegates[_from], _amount);
+    }
+
+    function transferOwnerToMC() external onlyOwner {
+        transferOwnership(DfyMaster);
     }
 
     // Copied and modified from YAM code:
